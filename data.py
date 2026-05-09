@@ -460,8 +460,7 @@ def load_all_data(season: str = CURRENT_SEASON, multi_season: bool = False) -> d
                 if po_col in player_logs.columns and reg_col in player_logs.columns:
                     mask = player_logs[po_col].notna()
                     player_logs.loc[mask, reg_col] = player_logs.loc[mask, po_col]
-
-            print(f"  Playoff rolling avgs merged — overriding regular season for {mask.sum()} players")
+                    print(f"  Playoff rolling avgs merged — overriding {mask.sum()} rows for {col}")
 
     print("Fetching player season stats...")
     player_stats = get_player_season_stats(season)
