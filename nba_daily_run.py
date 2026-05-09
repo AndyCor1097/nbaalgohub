@@ -211,9 +211,17 @@ def main():
     print("\n[2/5] Building prop features...")
     try:
         from features import build_prop_features
+
+        # Filter to players averaging 15+ minutes — removes bench scrubs
+        player_stats_filtered = data["player_stats"].copy()
+        if "min" in player_stats_filtered.columns:
+            before = len(player_stats_filtered)
+            player_stats_filtered = player_stats_filtered[player_stats_filtered["min"] >= 15]
+            print(f"  Min filter: {before} → {len(player_stats_filtered)} players (15+ mpg)")
+
         prop_features = build_prop_features(
             player_logs     = data["player_logs"],
-            player_stats    = data["player_stats"],
+            player_stats    = player_stats_filtered,
             player_adv      = data["player_adv"],
             team_ratings    = data["team_ratings"],
             upcoming_games  = upcoming,
