@@ -85,6 +85,15 @@ def form_icon(form):
     return {"hot": "🔥", "cold": "❄️", "neutral": "◆"}.get(form, "◆")
 
 
+def fmt_odds(odds) -> str:
+    """Safely format American odds value."""
+    try:
+        v = int(odds)
+        return f"+{v}" if v > 0 else str(v)
+    except:
+        return "N/A"
+
+
 def overlay_color(overlay, direction):
     if overlay is None:
         return "#475569"
@@ -113,11 +122,7 @@ def render_prop_row(prop, show_line=True):
         sign = "▲" if direction == "Over" else "▼"
         overlay_str = f'<span style="color:{oc};font-weight:700">{sign}{abs(overlay):.1f}</span>'
         direction_str = f'<span class="prop-{"over" if direction=="Over" else "under"}">{direction} {line}</span>'
-        try:
-            over_odds_val = int(over_odds) if over_odds is not None else None
-            odds_str = f'+{over_odds_val}' if over_odds_val and over_odds_val > 0 else str(over_odds_val) if over_odds_val else 'N/A'
-        except:
-            odds_str = 'N/A'
+        odds_str = fmt_odds(over_odds)
     else:
         overlay_str = '<span style="color:#475569">No line</span>'
         direction_str = '<span class="prop-neutral">—</span>'
@@ -302,7 +307,7 @@ def main():
                     form_str  = form_icon(form)
                     line      = o.get("line")
                     odds      = o.get("over_odds") if direction == "Over" else o.get("under_odds", -110)
-                    odds_str  = f'+{odds}' if odds and odds > 0 else str(odds) if odds else 'N/A'
+                    odds_str = fmt_odds(odds)
                     edge_pct  = o.get("edge_pct", 0)
 
                     st.markdown(f"""
@@ -354,7 +359,7 @@ def main():
                     oc        = overlay_color(overlay, direction)
                     sign      = "▲" if direction == "Over" else "▼"
                     odds      = leg.get("over_odds") if direction == "Over" else leg.get("under_odds", -110)
-                    odds_str  = f'+{odds}' if odds and odds > 0 else str(odds) if odds else 'N/A'
+                    odds_str = fmt_odds(odds)
 
                     st.markdown(f"""
                     <div style="background:#0c1018;border:1px solid #1c2333;border-radius:8px;padding:10px 14px;margin-bottom:6px;">
