@@ -126,22 +126,52 @@ def fetch_bovada_props() -> pd.DataFrame:
         return pd.DataFrame()
 
 
+LINE_BOUNDS = {
+    "points":   (8.5, 55.0),
+    "rebounds": (2.5, 22.0),
+    "assists":  (1.5, 14.0),
+    "threes":   (0.5, 8.0),
+}
+
 def get_prop_line(props_df: pd.DataFrame, player_name: str, prop_type: str) -> dict:
-    """Look up a player's over/under line."""
+    """Look up a player's over/under line using full name matching."""
     if props_df.empty:
         return {}
 
-    last_name = player_name.lower().split()[-1]
+    name_lower = player_name.lower().strip()
+    name_parts = name_lower.split()
+
+    # Try full name match first
     match = props_df[
-        props_df["player"].str.lower().str.contains(last_name) &
+        props_df["player"].str.lower().str.strip().str.contains(
+            " ".join(name_parts[-2:]) if len(name_parts) >= 2 else name_parts[-1]
+        ) &
         (props_df["prop_type"] == prop_type)
     ]
+
     if match.empty:
         return {}
 
+    # If multiple matches (common last name), pick closest full name
+    if len(match) > 1:
+        # Score by how many name parts match
+        def name_score(bovada_name):
+            bn = bovada_name.lower()
+            return sum(1 for p in name_parts if p in bn)
+        match = match.copy()
+        match["score"] = match["player"].apply(name_score)
+        match = match.sort_values("score", ascending=False)
+
     row = match.iloc[0]
+    line = row["line"]
+
+    # Sanity check line bounds
+    bounds = LINE_BOUNDS.get(prop_type)
+    if bounds and not (bounds[0] <= line <= bounds[1]):
+        return {}
+
     return {
-        "line":       row["line"],
+        "line":       line,
         "over_odds":  row["over_odds"],
         "under_odds": row["under_odds"],
     }
