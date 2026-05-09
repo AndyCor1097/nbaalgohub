@@ -113,7 +113,11 @@ def render_prop_row(prop, show_line=True):
         sign = "▲" if direction == "Over" else "▼"
         overlay_str = f'<span style="color:{oc};font-weight:700">{sign}{abs(overlay):.1f}</span>'
         direction_str = f'<span class="prop-{"over" if direction=="Over" else "under"}">{direction} {line}</span>'
-        odds_str = f'+{over_odds}' if over_odds and over_odds > 0 else str(over_odds) if over_odds else 'N/A'
+        try:
+            over_odds_val = int(over_odds) if over_odds is not None else None
+            odds_str = f'+{over_odds_val}' if over_odds_val and over_odds_val > 0 else str(over_odds_val) if over_odds_val else 'N/A'
+        except:
+            odds_str = 'N/A'
     else:
         overlay_str = '<span style="color:#475569">No line</span>'
         direction_str = '<span class="prop-neutral">—</span>'

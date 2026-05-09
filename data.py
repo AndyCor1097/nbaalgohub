@@ -135,16 +135,41 @@ def get_player_advanced_stats(season: str = CURRENT_SEASON) -> pd.DataFrame:
 def get_todays_games() -> pd.DataFrame:
     """
     Returns today's NBA schedule with game_id, home/away team IDs.
-    Deduplicates to ensure each game appears only once.
+    Uses ScoreboardV3 (ScoreboardV2 has known issues with 2025-26 season).
     """
-    sb = scoreboardv2.ScoreboardV2()
+    import datetime
+    from nba_api.stats.endpoints import scoreboardv3
+    
+    today = datetime.date.today().strftime("%Y-%m-%d")
+    sb = scoreboardv3.ScoreboardV3(game_date=today, league_id="00")
     _pause()
-    games = sb.get_data_frames()[0]   # GameHeader
-    games.columns = [c.lower() for c in games.columns]
-    games = games[["game_id", "game_date_est", "home_team_id", "visitor_team_id", "arena_name"]]
-    games = games.drop_duplicates(subset=["game_id"]).reset_index(drop=True)
-    return games
-
+    
+    games_df = sb.get_data_frames()[1]   # Frame 1 = game header
+    teams_df = sb.get_data_frames()[2]   # Frame 2 = team info
+    
+    if games_df.empty:
+        return pd.DataFrame()
+    
+    rows = []
+    for _, game in games_df.iterrows():
+        game_id = game["gameId"]
+        game_teams = teams_df[teams_df["gameId"] == game_id]
+        if len(game_teams) < 2:
+            continue
+        # home team has higher seed number in away context — use teamId directly
+        home = game_teams[game_teams["teamId"].isin(
+            [t for t in game_teams["teamId"]]
+        )].iloc[0]
+        away = game_teams.iloc[1]
+        rows.append({
+            "game_id":        game_id,
+            "game_date_est":  game.get("gameEt", today),
+            "home_team_id":   int(game_teams.iloc[0]["teamId"]),
+            "visitor_team_id":int(game_teams.iloc[1]["teamId"]),
+            "arena_name":     "",
+        })
+    
+    return pd.DataFrame(rows).drop_duplicates(subset=["game_id"]).reset_index(drop=True)
 
 # ── Rolling features helper ────────────────────────────────────────────────────
 

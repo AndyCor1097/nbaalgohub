@@ -57,53 +57,65 @@ def fetch_bovada_props() -> pd.DataFrame:
         if r.status_code != 200:
             return pd.DataFrame()
 
-        events = r.json()
         rows = []
+        for path_group in r.json():
+            for event in path_group.get("events", []):
+                teams = event.get("competitors", [])
+                home = next((t["name"] for t in teams if t.get("home")), "")
+                away = next((t["name"] for t in teams if not t.get("home")), "")
 
-        for event in events:
-            if not isinstance(event, dict):
-                continue
-            teams = event.get("competitors", [])
-            home = next((t["name"] for t in teams if t.get("home")), "")
-            away = next((t["name"] for t in teams if not t.get("home")), "")
-
-            for group in event.get("displayGroups", []):
-                for market in group.get("markets", []):
-                    desc = market.get("description", "").lower()
-                    if not any(x in desc for x in ["points", "rebounds", "assists", "made"]):
+                for dg in event.get("displayGroups", []):
+                    dg_desc = dg.get("description", "")
+                    if "Player Points" in dg_desc:
+                        prop_type = "points"
+                    elif "Player Rebounds" in dg_desc:
+                        prop_type = "rebounds"
+                    elif "Assists" in dg_desc:
+                        prop_type = "assists"
+                    elif "Three" in dg_desc:
+                        prop_type = "threes"
+                    else:
                         continue
 
-                    for outcome in market.get("outcomes", []):
-                        player = outcome.get("description", "")
-                        label  = outcome.get("type", "").lower()
-                        price  = outcome.get("price", {})
-                        line   = price.get("handicap")
-                        odds   = price.get("american", "-110")
-
-                        if not player or line is None:
+                    for market in dg.get("markets", []):
+                        m_desc = market.get("description", "")
+                        if " - " not in m_desc:
                             continue
+                        player = m_desc.split(" - ", 1)[1]
+                        if "(" in player:
+                            player = player[:player.rfind("(")].strip()
 
-                        prop_type = (
-                            "points"   if "point" in desc else
-                            "rebounds" if "rebound" in desc else
-                            "assists"  if "assist" in desc else
-                            "threes"   if "made" in desc else None
-                        )
-                        if not prop_type:
-                            continue
+                        line = None
+                        over_odds = under_odds = -110
+                        for outcome in market.get("outcomes", []):
+                            o_type = outcome.get("type", "").upper()
+                            price  = outcome.get("price", {})
+                            handicap = price.get("handicap")
+                            american = price.get("american", "-110")
+                            try:
+                                odds_val = int(str(american).replace("+", ""))
+                            except:
+                                odds_val = -110
+                            if handicap is not None and line is None:
+                                try:
+                                    line = float(handicap)
+                                except:
+                                    pass
+                            if o_type == "O":
+                                over_odds = odds_val
+                            elif o_type == "U":
+                                under_odds = odds_val
 
-                        try:
+                        if player and line is not None:
                             rows.append({
-                                "player":      player,
-                                "prop_type":   prop_type,
-                                "line":        float(line),
-                                "direction":   label,
-                                "odds":        int(str(odds).replace("+", "")),
-                                "home_team":   home,
-                                "away_team":   away,
+                                "player":     player,
+                                "prop_type":  prop_type,
+                                "line":       line,
+                                "over_odds":  over_odds,
+                                "under_odds": under_odds,
+                                "home_team":  home,
+                                "away_team":  away,
                             })
-                        except:
-                            pass
 
         df = pd.DataFrame(rows)
         print(f"  Bovada NBA props: {len(df)} lines found")
@@ -127,13 +139,11 @@ def get_prop_line(props_df: pd.DataFrame, player_name: str, prop_type: str) -> d
     if match.empty:
         return {}
 
-    over  = match[match["direction"].str.contains("over",  case=False)]
-    under = match[match["direction"].str.contains("under", case=False)]
-
+    row = match.iloc[0]
     return {
-        "line":       match.iloc[0]["line"],
-        "over_odds":  int(over.iloc[0]["odds"])  if not over.empty  else -110,
-        "under_odds": int(under.iloc[0]["odds"]) if not under.empty else -110,
+        "line":       row["line"],
+        "over_odds":  row["over_odds"],
+        "under_odds": row["under_odds"],
     }
 
 
